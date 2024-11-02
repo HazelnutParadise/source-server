@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -24,15 +26,34 @@ func main() {
 	}))
 	r.GET("/:source", func(c *gin.Context) {
 		source := c.Param("source")
-		// 取得本地文件
 		filePath := filepath.Join(sourceDir, source)
+
 		file, err := os.Open(filePath)
 		if err != nil {
 			c.JSON(404, gin.H{"message": "file not found"})
 			return
 		}
 		defer file.Close()
-		c.File(file.Name())
+
+		// 獲取檔案資訊
+		fileInfo, err := file.Stat()
+		if err != nil {
+			c.JSON(500, gin.H{"message": "could not get file info"})
+			return
+		}
+
+		// 設置響應標頭
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Transfer-Encoding", "binary")
+		c.Header("Content-Disposition", "attachment; filename="+source)
+		c.Header("Content-Type", "application/octet-stream")
+		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+
+		// 使用串流傳輸
+		c.Stream(func(w io.Writer) bool {
+			_, err := io.Copy(w, file)
+			return err == nil
+		})
 	})
 	r.Run(":8080")
 }
