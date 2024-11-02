@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -13,6 +13,7 @@ import (
 
 // 從 docker compose volume 取得 source 檔案路徑
 var sourceDir = os.Getenv("SOURCE_DIR")
+var supportStream = []string{"Chrome", "Firefox"}
 
 func main() {
 	// 如果 sourceDir 不存在，則創建
@@ -51,13 +52,13 @@ func main() {
 		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 
 		// 使用串流傳輸
-		if !strings.Contains(c.Request.UserAgent(), "Safari") {
+		if slices.Contains(supportStream, c.Request.UserAgent()) {
 			c.Stream(func(w io.Writer) bool {
 				_, err := io.Copy(w, file)
 				return err == nil
 			})
 		} else {
-			// 如果前端是safari，則直接傳輸
+			// 如果前端不是chrome或firefox，則直接傳輸
 			c.File(file.Name())
 		}
 	})
