@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  source-server:
+    image: source-server
+    ports:
+      - 4444:8080
+    volumes:
+      - /mnt/hdd0/source:/app/source
+    environment:
+      - SOURCE_DIR=/app/source
+
