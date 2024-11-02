@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -50,10 +51,15 @@ func main() {
 		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 
 		// 使用串流傳輸
-		c.Stream(func(w io.Writer) bool {
-			_, err := io.Copy(w, file)
-			return err == nil
-		})
+		if !strings.Contains(c.Request.UserAgent(), "Safari") {
+			c.Stream(func(w io.Writer) bool {
+				_, err := io.Copy(w, file)
+				return err == nil
+			})
+		} else {
+			// 如果前端是safari，則直接傳輸
+			c.File(file.Name())
+		}
 	})
 	r.Run(":8080")
 }
