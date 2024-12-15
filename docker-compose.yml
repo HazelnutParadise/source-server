@@ -9,4 +9,5 @@ services:
       - /mnt/hdd0/source:/app/source
     environment:
       - SOURCE_DIR=/app/source
+    restart: always
 
