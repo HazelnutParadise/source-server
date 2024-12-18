@@ -28,7 +28,7 @@ func main() {
 	}))
 	r.GET("/:source", func(c *gin.Context) {
 		source := c.Param("source")
-		contentType := c.Query("content_type")
+		contentType := c.Query("content-type")
 		filePath := filepath.Join(sourceDir, source)
 
 		file, err := os.Open(filePath)
