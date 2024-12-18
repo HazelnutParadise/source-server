@@ -16,7 +16,6 @@ var sourceDir = os.Getenv("SOURCE_DIR")
 var supportStream = []string{"Chrome", "Firefox"}
 
 func main() {
-	fmt.Println("version: 20241218")
 	// 如果 sourceDir 不存在，則創建
 	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 		os.MkdirAll(sourceDir, 0755)
@@ -46,17 +45,19 @@ func main() {
 			return
 		}
 
+		// 如果有 content_type 參數，則使用 content_type
+		if contentType != "" {
+			c.Header("Content-Type", contentType)
+			c.File(file.Name())
+			return
+		}
+
 		// 設置響應標頭
 		c.Header("Content-Description", "File Transfer")
 		c.Header("Content-Transfer-Encoding", "binary")
 		c.Header("Content-Disposition", "attachment; filename="+source)
 		c.Header("Content-Type", "application/octet-stream")
 		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-
-		// 如果有 content_type 參數，則使用 content_type
-		if contentType != "" {
-			c.Header("Content-Type", contentType)
-		}
 
 		// 使用串流傳輸
 		if slices.Contains(supportStream, c.Request.UserAgent()) {
