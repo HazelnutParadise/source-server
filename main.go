@@ -28,6 +28,7 @@ func main() {
 	}))
 	r.GET("/:source", func(c *gin.Context) {
 		source := c.Param("source")
+		contentType := c.Query("content_type")
 		filePath := filepath.Join(sourceDir, source)
 
 		file, err := os.Open(filePath)
@@ -50,6 +51,11 @@ func main() {
 		c.Header("Content-Disposition", "attachment; filename="+source)
 		c.Header("Content-Type", "application/octet-stream")
 		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+
+		// 如果有 content_type 參數，則使用 content_type
+		if contentType != "" {
+			c.Header("Content-Type", contentType)
+		}
 
 		// 使用串流傳輸
 		if slices.Contains(supportStream, c.Request.UserAgent()) {
