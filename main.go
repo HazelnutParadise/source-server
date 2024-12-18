@@ -16,6 +16,7 @@ var sourceDir = os.Getenv("SOURCE_DIR")
 var supportStream = []string{"Chrome", "Firefox"}
 
 func main() {
+	fmt.Println("version: 20241218")
 	// 如果 sourceDir 不存在，則創建
 	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 		os.MkdirAll(sourceDir, 0755)
