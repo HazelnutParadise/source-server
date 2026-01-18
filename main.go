@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,37 +88,63 @@ func main() {
 			return
 		}
 
-		// 如果有 content-type 參數，則使用 content-type
-		if contentType != "" {
-			c.Header("Content-Type", contentType)
-			c.File(file.Name())
+		// 決定 MIME 類型（以 query content-type 優先，否則由副檔名或前 512 bytes 偵測）
+		mimeType := contentType
+		if mimeType == "" {
+			ext := strings.ToLower(filepath.Ext(source))
+			if ext != "" {
+				mimeType = mime.TypeByExtension(ext)
+			}
+			if mimeType == "" {
+				// sniff
+				buf := make([]byte, 512)
+				n, _ := file.ReadAt(buf, 0)
+				mimeType = http.DetectContentType(buf[:n])
+				file.Seek(0, io.SeekStart)
+			}
+		}
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		c.Header("Content-Type", mimeType)
+
+		// 根據 MIME 決定是否為 media（audio/video）
+		isMedia := strings.HasPrefix(mimeType, "video/") || strings.HasPrefix(mimeType, "audio/")
+		// 如果是 media，回傳內嵌；非 media 預設為 attachment（可以用 ?download=1 強制下載）
+		if isMedia && c.Query("download") != "1" {
+			c.Header("Content-Disposition", "inline; filename="+source)
+		} else {
+			c.Header("Content-Disposition", "attachment; filename="+source)
+		}
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Transfer-Encoding", "binary")
+
+		// 自動切換：若有 Range header（表示 client 想要部分內容 / 續傳）或是 media（讓瀏覽器能尋址播放）就使用 ServeContent
+		chunked := c.Query("chunked") == "1"
+		if c.Request.Header.Get("Range") != "" || isMedia || !chunked {
+			http.ServeContent(c.Writer, c.Request, source, fileInfo.ModTime(), file)
 			return
 		}
 
-		// 設置響應標頭
-		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Transfer-Encoding", "binary")
-		c.Header("Content-Disposition", "attachment; filename="+source)
-		c.Header("Content-Type", "application/octet-stream")
-		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-
-		// 使用串流傳輸（檢查 User-Agent 是否包含支援瀏覽器名稱）
-		ua := c.Request.UserAgent()
-		support := false
-		for _, s := range supportStream {
-			if strings.Contains(ua, s) {
-				support = true
+		// 否則若使用 chunked 模式，採分塊串流（不設定 Content-Length）
+		buf := make([]byte, 32*1024)
+		c.Status(200)
+		for {
+			n, err := file.Read(buf)
+			if n > 0 {
+				if _, werr := c.Writer.Write(buf[:n]); werr != nil {
+					break
+				}
+				if flusher, ok := c.Writer.(http.Flusher); ok {
+					flusher.Flush()
+				}
+			}
+			if err == io.EOF {
 				break
 			}
-		}
-		if support {
-			c.Stream(func(w io.Writer) bool {
-				_, err := io.Copy(w, file)
-				return err == nil
-			})
-		} else {
-			// 如果前端不是支援的瀏覽器，則直接傳輸
-			c.File(file.Name())
+			if err != nil {
+				break
+			}
 		}
 	})
 	r.Run(":8080")
