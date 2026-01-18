@@ -16,10 +16,15 @@ var sourceDir = os.Getenv("SOURCE_DIR")
 var supportStream = []string{"Chrome", "Firefox"}
 
 func main() {
+	// 如果未設定 SOURCE_DIR，使用預設 './sources'
+	if sourceDir == "" {
+		sourceDir = "./sources"
+	}
 	// 如果 sourceDir 不存在，則創建
 	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 		os.MkdirAll(sourceDir, 0755)
 	}
+	fmt.Printf("Using SOURCE_DIR=%s\n", sourceDir)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -47,6 +52,7 @@ func main() {
 			return
 		}
 		rel, err := filepath.Rel(absSourceDir, absFilePath)
+		fmt.Printf("Request path=%q filePath=%q absSourceDir=%q absFilePath=%q rel=%q err=%v\n", source, filePath, absSourceDir, absFilePath, rel, err)
 		if err != nil || strings.HasPrefix(rel, "..") {
 			c.JSON(403, gin.H{"message": "forbidden"})
 			return
@@ -59,10 +65,24 @@ func main() {
 		}
 		defer file.Close()
 
-		// 獲取檔案資訊
+		// 如果請求的是目錄，回傳錯誤（或可改為提供目錄列舉）
 		fileInfo, err := file.Stat()
 		if err != nil {
 			c.JSON(500, gin.H{"message": "could not get file info"})
+			return
+		}
+		if fileInfo.IsDir() {
+			// 回傳目錄內容簡短列舉
+			entries, err := os.ReadDir(absFilePath)
+			if err != nil {
+				c.JSON(500, gin.H{"message": "could not read directory"})
+				return
+			}
+			names := make([]string, 0, len(entries))
+			for _, e := range entries {
+				names = append(names, e.Name())
+			}
+			c.JSON(400, gin.H{"message": "path is a directory", "entries": names})
 			return
 		}
 
